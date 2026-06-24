@@ -9,6 +9,7 @@ The default FBX export is set for Unity:
 
 - Forward: `-Z`
 - Up: `Y`
+- Apply Unity axis transform: enabled
 - Leaf bones: disabled
 - Unit scale: enabled
 
@@ -39,5 +40,6 @@ The add-on preferences support:
 - Export selected objects only
 - Export visible objects only
 - Bake animation
+- Apply Unity axis transform
 - Include cameras and lights
 - Custom FBX export directory

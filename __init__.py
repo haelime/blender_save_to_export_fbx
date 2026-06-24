@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Save to FBX Export",
     "author": "Local",
-    "version": (1, 0, 1),
+    "version": (1, 0, 2),
     "blender": (3, 6, 0),
     "location": "Ctrl+S",
     "description": "Save the current Blender file and export a Unity-oriented FBX next to it.",
@@ -95,7 +95,7 @@ def _export_unity_fbx(preferences, reporter=None):
             "axis_forward": "-Z",
             "axis_up": "Y",
             "use_space_transform": True,
-            "bake_space_transform": False,
+            "bake_space_transform": preferences.apply_unity_axis_transform,
             "add_leaf_bones": False,
             "primary_bone_axis": "Y",
             "secondary_bone_axis": "X",
@@ -159,6 +159,11 @@ class SAVE_TO_FBX_EXPORT_preferences(bpy.types.AddonPreferences):
         description="Bake supported scene animation into the exported FBX",
         default=True,
     )
+    apply_unity_axis_transform: BoolProperty(
+        name="Apply Unity axis transform",
+        description="Bake Blender-to-Unity axis conversion into the FBX so Unity does not need an extra X rotation",
+        default=True,
+    )
     export_cameras_and_lights: BoolProperty(
         name="Export cameras and lights",
         description="Include cameras and lights in the exported FBX",
@@ -181,6 +186,7 @@ class SAVE_TO_FBX_EXPORT_preferences(bpy.types.AddonPreferences):
         layout.prop(self, "use_selection")
         layout.prop(self, "use_visible")
         layout.prop(self, "bake_animation")
+        layout.prop(self, "apply_unity_axis_transform")
         layout.prop(self, "export_cameras_and_lights")
         layout.prop(self, "use_custom_export_directory")
 
