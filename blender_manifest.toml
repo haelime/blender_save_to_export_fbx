@@ -1,0 +1,11 @@
+schema_version = "1.0.0"
+
+id = "save_to_fbx_export"
+version = "1.0.0"
+name = "Save to FBX Export"
+tagline = "Save .blend files and export Unity-oriented FBX files with Ctrl+S"
+maintainer = "Local"
+type = "add-on"
+
+blender_version_min = "4.2.0"
+license = ["SPDX:GPL-3.0-or-later"]
