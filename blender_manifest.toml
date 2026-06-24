@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "save_to_fbx_export"
-version = "1.0.0"
+version = "1.0.1"
 name = "Save to FBX Export"
 tagline = "Save .blend files and export Unity-oriented FBX files with Ctrl+S"
 maintainer = "Local"

@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Save to FBX Export",
     "author": "Local",
-    "version": (1, 0, 0),
+    "version": (1, 0, 1),
     "blender": (3, 6, 0),
     "location": "Ctrl+S",
     "description": "Save the current Blender file and export a Unity-oriented FBX next to it.",
@@ -11,11 +11,11 @@ bl_info = {
 import os
 
 import bpy
+from bpy.app.handlers import persistent
 from bpy.props import BoolProperty, StringProperty
 
 
-_addon_keymaps = []
-_disabled_save_keymaps = []
+_is_exporting_after_save = False
 
 
 def _addon_preferences():
@@ -42,10 +42,6 @@ def _enable_fbx_exporter():
         return False
 
 
-def _default_unsaved_blend_path():
-    return os.path.join(os.path.expanduser("~"), "untitled.blend")
-
-
 def _blend_path_with_extension(path):
     if not path.lower().endswith(".blend"):
         return f"{path}.blend"
@@ -69,6 +65,80 @@ def _object_types(preferences):
     if preferences.export_cameras_and_lights:
         types.update({"CAMERA", "LIGHT"})
     return types
+
+
+def _export_unity_fbx(preferences, reporter=None):
+    if not bpy.data.filepath:
+        return False
+
+    if not _enable_fbx_exporter():
+        if reporter:
+            reporter({"ERROR"}, "Blender FBX exporter is unavailable.")
+        else:
+            print("Save to FBX Export: Blender FBX exporter is unavailable.")
+        return False
+
+    fbx_path = _fbx_path_for_blend(bpy.data.filepath, preferences)
+    fbx_dir = os.path.dirname(fbx_path)
+    if fbx_dir:
+        os.makedirs(fbx_dir, exist_ok=True)
+
+    export_kwargs = _with_existing_export_properties(
+        {
+            "filepath": fbx_path,
+            "check_existing": False,
+            "use_selection": preferences.use_selection,
+            "use_visible": preferences.use_visible,
+            "object_types": _object_types(preferences),
+            "apply_unit_scale": True,
+            "apply_scale_options": "FBX_SCALE_UNITS",
+            "axis_forward": "-Z",
+            "axis_up": "Y",
+            "use_space_transform": True,
+            "bake_space_transform": False,
+            "add_leaf_bones": False,
+            "primary_bone_axis": "Y",
+            "secondary_bone_axis": "X",
+            "use_armature_deform_only": True,
+            "bake_anim": preferences.bake_animation,
+        }
+    )
+
+    try:
+        export_result = bpy.ops.export_scene.fbx(**export_kwargs)
+    except Exception as exc:
+        if reporter:
+            reporter({"ERROR"}, f"FBX export failed: {exc}")
+        else:
+            print(f"Save to FBX Export: FBX export failed: {exc}")
+        return False
+
+    if "FINISHED" not in export_result:
+        if reporter:
+            reporter({"ERROR"}, "FBX export did not finish.")
+        else:
+            print("Save to FBX Export: FBX export did not finish.")
+        return False
+
+    if reporter:
+        reporter({"INFO"}, f"Exported Unity FBX: {fbx_path}")
+    else:
+        print(f"Save to FBX Export: Exported Unity FBX: {fbx_path}")
+    return True
+
+
+@persistent
+def _export_after_save(_dummy):
+    global _is_exporting_after_save
+
+    if _is_exporting_after_save:
+        return
+
+    _is_exporting_after_save = True
+    try:
+        _export_unity_fbx(_addon_preferences())
+    finally:
+        _is_exporting_after_save = False
 
 
 class SAVE_TO_FBX_EXPORT_preferences(bpy.types.AddonPreferences):
@@ -133,14 +203,14 @@ class SAVE_TO_FBX_EXPORT_OT_save_and_export(bpy.types.Operator):
 
     def invoke(self, context, event):
         if not bpy.data.filepath:
-            self.filepath = _default_unsaved_blend_path()
-            context.window_manager.fileselect_add(self)
-            return {"RUNNING_MODAL"}
+            return bpy.ops.wm.save_as_mainfile("INVOKE_DEFAULT")
 
         return self.execute(context)
 
     def execute(self, context):
-        preferences = _addon_preferences()
+        if not self.filepath and not bpy.data.filepath:
+            return bpy.ops.wm.save_as_mainfile("INVOKE_DEFAULT")
+
         blend_path = _blend_path_with_extension(self.filepath or bpy.data.filepath)
         blend_dir = os.path.dirname(blend_path)
 
@@ -152,47 +222,7 @@ class SAVE_TO_FBX_EXPORT_OT_save_and_export(bpy.types.Operator):
             self.report({"ERROR"}, "Blender file was not saved; FBX export was skipped.")
             return {"CANCELLED"}
 
-        if not _enable_fbx_exporter():
-            self.report({"ERROR"}, "Blender FBX exporter is unavailable.")
-            return {"CANCELLED"}
-
-        fbx_path = _fbx_path_for_blend(blend_path, preferences)
-        fbx_dir = os.path.dirname(fbx_path)
-        if fbx_dir:
-            os.makedirs(fbx_dir, exist_ok=True)
-
-        export_kwargs = _with_existing_export_properties(
-            {
-                "filepath": fbx_path,
-                "check_existing": False,
-                "use_selection": preferences.use_selection,
-                "use_visible": preferences.use_visible,
-                "object_types": _object_types(preferences),
-                "apply_unit_scale": True,
-                "apply_scale_options": "FBX_SCALE_UNITS",
-                "axis_forward": "-Z",
-                "axis_up": "Y",
-                "use_space_transform": True,
-                "bake_space_transform": False,
-                "add_leaf_bones": False,
-                "primary_bone_axis": "Y",
-                "secondary_bone_axis": "X",
-                "use_armature_deform_only": True,
-                "bake_anim": preferences.bake_animation,
-            }
-        )
-
-        try:
-            export_result = bpy.ops.export_scene.fbx(**export_kwargs)
-        except Exception as exc:
-            self.report({"ERROR"}, f"FBX export failed: {exc}")
-            return {"CANCELLED"}
-
-        if "FINISHED" not in export_result:
-            self.report({"ERROR"}, "FBX export did not finish.")
-            return {"CANCELLED"}
-
-        self.report({"INFO"}, f"Saved .blend and exported FBX: {fbx_path}")
+        self.report({"INFO"}, "Saved .blend. FBX export runs after save.")
         return {"FINISHED"}
 
 
@@ -211,7 +241,7 @@ def _is_plain_ctrl_s(kmi):
     )
 
 
-def _disable_existing_ctrl_s_save_keymaps():
+def _restore_plain_ctrl_s_save_keymaps():
     window_manager = bpy.context.window_manager
     save_operator_ids = {"wm.save_as_mainfile", "wm.save_mainfile"}
 
@@ -225,39 +255,17 @@ def _disable_existing_ctrl_s_save_keymaps():
 
         for keymap_item in keymap.keymap_items:
             if keymap_item.idname in save_operator_ids and _is_plain_ctrl_s(keymap_item):
-                _disabled_save_keymaps.append((keymap_item, keymap_item.active))
-                keymap_item.active = False
+                keymap_item.active = True
 
 
-def _restore_existing_ctrl_s_save_keymaps():
-    while _disabled_save_keymaps:
-        keymap_item, was_active = _disabled_save_keymaps.pop()
-        try:
-            keymap_item.active = was_active
-        except ReferenceError:
-            pass
+def _register_save_handler():
+    if _export_after_save not in bpy.app.handlers.save_post:
+        bpy.app.handlers.save_post.append(_export_after_save)
 
 
-def _register_ctrl_s_keymap():
-    window_manager = bpy.context.window_manager
-    keyconfig = window_manager.keyconfigs.addon
-    if not keyconfig:
-        return
-
-    keymap = keyconfig.keymaps.new(name="Window", space_type="EMPTY")
-    keymap_item = keymap.keymap_items.new(
-        SAVE_TO_FBX_EXPORT_OT_save_and_export.bl_idname,
-        type="S",
-        value="PRESS",
-        ctrl=True,
-    )
-    _addon_keymaps.append((keymap, keymap_item))
-
-
-def _unregister_ctrl_s_keymap():
-    while _addon_keymaps:
-        keymap, keymap_item = _addon_keymaps.pop()
-        keymap.keymap_items.remove(keymap_item)
+def _unregister_save_handler():
+    if _export_after_save in bpy.app.handlers.save_post:
+        bpy.app.handlers.save_post.remove(_export_after_save)
 
 
 classes = (
@@ -271,13 +279,12 @@ def register():
         bpy.utils.register_class(cls)
 
     bpy.types.TOPBAR_MT_file.append(_draw_file_menu)
-    _disable_existing_ctrl_s_save_keymaps()
-    _register_ctrl_s_keymap()
+    _restore_plain_ctrl_s_save_keymaps()
+    _register_save_handler()
 
 
 def unregister():
-    _unregister_ctrl_s_keymap()
-    _restore_existing_ctrl_s_save_keymaps()
+    _unregister_save_handler()
     bpy.types.TOPBAR_MT_file.remove(_draw_file_menu)
 
     for cls in reversed(classes):

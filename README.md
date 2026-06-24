@@ -1,6 +1,6 @@
 # Save to FBX Export
 
-Blender add-on that replaces `Ctrl+S` with:
+Blender add-on that keeps Blender's normal save behavior and runs an automatic FBX export after each save:
 
 1. Save the current `.blend` file.
 2. Export an `.fbx` file with the same base name.
@@ -28,7 +28,7 @@ Install `__init__.py` or a zip of this folder through `Edit > Preferences > Add-
 
 Enable the add-on, then press `Ctrl+S`.
 
-If the file has never been saved, Blender opens a file picker for the `.blend` path first. After the `.blend` save completes, the `.fbx` is exported.
+If the file has never been saved, Blender opens its normal save file picker first. After the `.blend` save completes, the `.fbx` is exported.
 
 You can also run the action from `File > Save Blend and Export Unity FBX`.
 
